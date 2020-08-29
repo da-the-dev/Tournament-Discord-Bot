@@ -1,6 +1,7 @@
 const Discord = require('discord.js')
 const dotenv = require('dotenv').config()
 const fs = require('fs')
+
 /**@type {string} */
 const prefix = JSON.parse(fs.readFileSync('settings.json').toString()).prefix
 
@@ -24,7 +25,7 @@ const nicknameOrUsername = (member) => {
 class ParsedMessage {
     /**@param {Discord.Message} msg
      * @param {string} message
-    */
+     */
     constructor(msg, messsage) {
         /**@type {Discord.Message} */
         this.msg = msg
@@ -36,48 +37,41 @@ class ParsedMessage {
 }
 
 class Tournament {
-    constructor() {
+    constructor(name) {
         /**@type {string}*/
-        this.name = ""
+        this.name = name
         /**@type {Array<Discord.GuildMember>} */
         this.members = new Array()
         /**@type {Array<Discord.GuildMember>} */
         this.nextStep = new Array()
         /**@type {Array<Array<Discord.GuildMember>>} */
-        this.pairs = new Array()
+        this.activePairs = new Array()
 
         this.isStarted = false
     }
-    create() {
-        this.isCreated = true
-    }
-    /**@param {string} name*/
-    setName(name) {
-        if(this.isCreated)
-            this.name = name
-    }
     /**@param {Discord.GuildMember} member */
     addMember(member) {
-
         if(!this.isStarted)
             if(!this.members.includes(member)) {
-                console.log('[DEBUG] Added a new member to tournament')
                 this.members.push(member)
                 return true
-            }
-            else
+            } else {
                 return false
-
+            }
     }
     start() {
-
-        if(!isPowerOfTwo(this.members.length)) {
+        if(isPowerOfTwo(this.members.length)) {
             this.isStarted = true
-
+            /**@type {Array<Array<Discord.GuildMember>>} */
+            this.activePairs = new Array()
             for(this.i = 0; this.i < this.members.length / 2; this.i++)
-                this.pairs[this.i] = [this.members[this.i], this.members[this.i + 1]]
+                this.activePairs.push([this.members[this.i], this.members[this.i + 1]])
         }
-
+    }
+    /**@param {ParsedMessage} msg*/
+    async rigTournament(msg) {
+        this.members.push(await msg.msg.guild.members.fetch('315339158912761856'))
+        this.members.push(await msg.msg.guild.members.fetch('646071442101895208'))
     }
 }
 
@@ -88,21 +82,23 @@ client.once("ready", () => {
     console.log("Tournament Bot ready")
 })
 
-var tournament = new Tournament
+var tournament
 
-client.on("message", (message) => {
+client.on("message", async (message) => {
     if(message.content.slice(0, prefix.length) == prefix && !message.author.bot) {
+        const defaultReply = new Discord.MessageEmbed()
+            .setColor("#4F61A1")
+            .setFooter("Tournament Bot", client.user.avatarURL())
         var msg = new ParsedMessage(message, message.content)
 
         switch(msg.command) {
             case "createTournament":
-                tournament.setName(msg.args[0])
-                tournament.members = new Array
-                tournament.isCreated = false
+                tournament = new Tournament(msg.args[0])
+                tournament.members = new Array()
 
-                var reply = new Discord.MessageEmbed()
-                    .setTitle(`Tournament created with name "*${msg.args[0]}*"`)
-                    .setFooter("Tournament Bot", client.user.avatarURL())
+                var reply = defaultReply
+                reply.setTitle(`Tournament created with name "*${msg.args[0]}*"`)
+
                 msg.msg.channel.send(reply)
                 break
             case "addMember":
@@ -112,21 +108,30 @@ client.on("message", (message) => {
                     return
                 }
                 if(tournament.addMember(member)) {
-                    var reply = new Discord.MessageEmbed()
-                        .setTitle(`Added user '*${nicknameOrUsername(member)}*' to tournament '*${tournament.name}*'`)
-                        .setFooter("Tournament Bot", client.user.avatarURL())
+                    var reply = defaultReply
+                    reply.setTitle(`Added user '*${nicknameOrUsername(member)}*' to tournament '*${tournament.name}*'`)
                 } else {
-                    var reply = new Discord.MessageEmbed()
-                        .setTitle(`User '*${nicknameOrUsername(member)}*' is already in tournament '*${tournament.name}*'`)
-                        .setFooter("Tournament Bot", client.user.avatarURL())
+                    var reply = defaultReply
+                    reply.setTitle(`User '*${nicknameOrUsername(member)}*' is already in tournament '*${tournament.name}*'`)
                 }
                 msg.msg.channel.send(reply)
+                break
             case "startTournament":
                 tournament.start()
+                break
+            case "rigTournament":
+                tournament = new Tournament("test")
+                await tournament.rigTournament(msg)
+                tournament.start()
+                console.log(tournament)
+                console.log(tournament.activePairs)
+                break
             case "printTournament":
                 console.log(tournament)
+                break
             case "printPairs":
-                console.log(tournament.pairs)
+                console.log(tournament.activePairs)
+                break
         }
     }
 })
