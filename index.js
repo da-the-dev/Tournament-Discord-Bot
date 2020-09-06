@@ -1,6 +1,13 @@
 const Discord = require('discord.js')
 const dotenv = require('dotenv').config()
 const fs = require('fs')
+const { type } = require('os')
+const client = new Discord.Client()
+const defaultReply = new Discord.MessageEmbed()
+    .setColor("#4F61A1")
+    .setFooter("Tournament Bot", client.user.avatarURL())
+/**@type {ParsedMessage} */
+var msg
 
 /**@type {string} */
 const prefix = JSON.parse(fs.readFileSync('settings.json').toString()).prefix
@@ -11,7 +18,6 @@ const isPowerOfTwo = (number) => {
         return true
     else
         return false
-
 }
 
 /**@param {Discord.GuildMember} member */
@@ -64,9 +70,55 @@ class Tournament {
             this.isStarted = true
             /**@type {Array<Array<Discord.GuildMember>>} */
             this.activePairs = new Array()
-            for(this.i = 0; this.i < this.members.length / 2; this.i++)
-                this.activePairs.push([this.members[this.i], this.members[this.i + 1]])
+            for(var i = 0; i < this.members.length / 2; i++) {
+                this.activePairs.push([this.members[i], this.members[i + 1]])
+            }
+
+            var reply = defaultReply
+            reply.setTitle("Tournament started! No members are allowed in! Let's go!")
+            msg.msg.channel.send(reply)
         }
+    }
+    /**@param {Discord.GuildMember} member */
+    pickWinner(member) {
+        for(var i = 0; i < this.activePairs.length; i++) {
+            /**@type {Array<Discord.GuildMember>} */
+            var pair = this.activePairs[i]
+            // console.log("[DEBUG] Member:")
+            // console.log(member)
+            // console.log("[DEBUG] Pair 1:")
+            // console.log(pair[0])
+            // console.log("[DEBUG] Pair 2:")
+            // console.log(pair[1])
+            // console.log("[DEBUG] Exists? " + pair.includes(member))
+
+            if(pair.includes(member)) {
+                if(member == pair[0]) {
+                    this.activePairs[i] = pair[0]
+                }
+                if(member == pair[1]) {
+                    this.activePairs[i] = pair[0]
+                }
+            }
+        }
+        var onlyWinners = false
+        this.activePairs.forEach(pair => {
+            if(pair.length > 1)
+                onlyWinners = true
+        })
+        // console.log("[DEBUG] Active pairs:")
+        // console.log(this.activePairs)
+        if(onlyWinners) {
+            /**@type {Array<Discord.GuildMember>} */
+            this.members = new Array()
+            this.activePairs.forEach(pair => {
+                this.members.push(pair[0])
+            })
+            /**@type {Array<Array<Discord.GuildMember>>} */
+            this.activePairs = new Array()
+        }
+        // console.log("[DEBUG] Members:")
+        // console.log(this.activePairs)
     }
     /**@param {ParsedMessage} msg*/
     async rigTournament(msg) {
@@ -75,7 +127,6 @@ class Tournament {
     }
 }
 
-const client = new Discord.Client()
 client.login(process.env.KEY)
 
 client.once("ready", () => {
@@ -86,10 +137,7 @@ var tournament
 
 client.on("message", async (message) => {
     if(message.content.slice(0, prefix.length) == prefix && !message.author.bot) {
-        const defaultReply = new Discord.MessageEmbed()
-            .setColor("#4F61A1")
-            .setFooter("Tournament Bot", client.user.avatarURL())
-        var msg = new ParsedMessage(message, message.content)
+        msg = new ParsedMessage(message, message.content)
 
         switch(msg.command) {
             case "createTournament":
@@ -119,12 +167,21 @@ client.on("message", async (message) => {
             case "startTournament":
                 tournament.start()
                 break
+            case "pickWinner":
+                var member = msg.msg.mentions.members.first()
+                if(!member) {
+                    msg.msg.reply("invalid user")
+                    return
+                }
+
+                tournament.pickWinner(member)
+                break
             case "rigTournament":
                 tournament = new Tournament("test")
                 await tournament.rigTournament(msg)
                 tournament.start()
-                console.log(tournament)
-                console.log(tournament.activePairs)
+
+                console.log("[DEBUG] Tournament rigged...")
                 break
             case "printTournament":
                 console.log(tournament)
