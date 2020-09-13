@@ -1,11 +1,11 @@
 const Discord = require('discord.js')
 const dotenv = require('dotenv').config()
 const fs = require('fs')
-const { type } = require('os')
+const { log } = require('console')
 const client = new Discord.Client()
-const defaultReply = new Discord.MessageEmbed()
-    .setColor("#4F61A1")
-    .setFooter("Tournament Bot", client.user.avatarURL())
+
+/**@type {Discord.MessageEmbed} */
+var defaultReply
 /**@type {ParsedMessage} */
 var msg
 
@@ -14,6 +14,9 @@ const prefix = JSON.parse(fs.readFileSync('settings.json').toString()).prefix
 
 /**@param {number} */
 const isPowerOfTwo = (number) => {
+    if(number == 1) {
+        return false
+    }
     if(Number.isInteger(Math.log2(number)))
         return true
     else
@@ -48,12 +51,19 @@ class Tournament {
         this.name = name
         /**@type {Array<Discord.GuildMember>} */
         this.members = new Array()
-        /**@type {Array<Discord.GuildMember>} */
-        this.nextStep = new Array()
         /**@type {Array<Array<Discord.GuildMember>>} */
         this.activePairs = new Array()
+        /**@type {Array<Array<Discord.GuildMember>>} */
+        this.thirdStagePairs = new Array()
 
         this.isStarted = false
+
+        /**@type {Discord.GuildMember} */
+        this.firstPlace
+        /**@type {Discord.GuildMember} */
+        this.secondPlace
+        /**@type {Discord.GuildMember} */
+        this.thirdPlace
     }
     /**@param {Discord.GuildMember} member */
     addMember(member) {
@@ -77,20 +87,47 @@ class Tournament {
             var reply = defaultReply
             reply.setTitle("Tournament started! No members are allowed in! Let's go!")
             msg.msg.channel.send(reply)
+        } else {
+            var nearestMemberCount = this.members.length
+            while(!isPowerOfTwo(nearestMemberCount))
+                nearestMemberCount++
+
+            var reply = defaultReply
+            reply.setTitle(`Not enough members!`)
+            reply.addField(`${this.members.length} is not a power of 2!`, `Closest member ammount: ${nearestMemberCount}`)
+            msg.msg.channel.send(reply)
         }
     }
     /**@param {Discord.GuildMember} member */
     pickWinner(member) {
+        if(this.activePairs.length == 2) {
+            this.thirdStagePairs = this.activePairs
+        }
+
+        if(this.activePairs.length == 1 && this.activePairs[0].includes(member)) { // First and second place
+            console.log(`[DEBUG] Identifying 1 place and 2 place...`)
+            console.log()
+            var winnerPair = this.activePairs[0]
+            console.log(`[DEBUG] Winner pair: \n${winnerPair[0]}`)
+            console.log()
+
+            this.firstPlace = member
+            if(winnerPair[0] == member)
+                this.secondPlace = winnerPair[1]
+            else
+                this.secondPlace == winnerPair[0]
+
+            console.log(`[DEBUG] First place: ${this.firstPlace}`)
+            console.log(`[DEBUG] Second place: ${this.secondPlace}`)
+            console.log()
+            console.log(`[DEBUG] First place name: ${nicknameOrUsername(this.firstPlace)}`)
+            console.log(`[DEBUG] Second place name: ${nicknameOrUsername(this.secondPlace)}`)
+            return 0
+        }
+
         for(var i = 0; i < this.activePairs.length; i++) {
             /**@type {Array<Discord.GuildMember>} */
             var pair = this.activePairs[i]
-            // console.log("[DEBUG] Member:")
-            // console.log(member)
-            // console.log("[DEBUG] Pair 1:")
-            // console.log(pair[0])
-            // console.log("[DEBUG] Pair 2:")
-            // console.log(pair[1])
-            // console.log("[DEBUG] Exists? " + pair.includes(member))
 
             if(pair.includes(member)) {
                 if(member == pair[0]) {
@@ -106,8 +143,6 @@ class Tournament {
             if(pair.length > 1)
                 onlyWinners = true
         })
-        // console.log("[DEBUG] Active pairs:")
-        // console.log(this.activePairs)
         if(onlyWinners) {
             /**@type {Array<Discord.GuildMember>} */
             this.members = new Array()
@@ -117,8 +152,6 @@ class Tournament {
             /**@type {Array<Array<Discord.GuildMember>>} */
             this.activePairs = new Array()
         }
-        // console.log("[DEBUG] Members:")
-        // console.log(this.activePairs)
     }
     /**@param {ParsedMessage} msg*/
     async rigTournament(msg) {
@@ -131,8 +164,12 @@ client.login(process.env.KEY)
 
 client.once("ready", () => {
     console.log("Tournament Bot ready")
+    defaultReply = new Discord.MessageEmbed()
+        .setColor("#4F61A1")
+        .setFooter("Tournament Bot", client.user.avatarURL())
 })
 
+/**@type {Tournament} */
 var tournament
 
 client.on("message", async (message) => {
@@ -188,6 +225,14 @@ client.on("message", async (message) => {
                 break
             case "printPairs":
                 console.log(tournament.activePairs)
+                break
+            case "printWinners":
+                if(tournament.firstPlace)
+                    console.log(`[DEBUG] First place name: ${nicknameOrUsername(tournament.firstPlace)}`)
+                if(tournament.secondPlace)
+                    console.log(`[DEBUG] Second place name: ${nicknameOrUsername(tournament.secondPlace)}`)
+                if(tournament.thirdPlace)
+                    console.log(`[DEBUG] Third place name: ${nicknameOrUsername(tournament.thirdPlace)}`)
                 break
         }
     }
